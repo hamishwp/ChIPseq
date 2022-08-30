@@ -1,0 +1,23 @@
+---
+title: "Predicting Transcription Factor Binding using ChIP-seq Data"
+author: "Hamish Patten"
+date: "`r Sys.Date()`"
+output: pdf_document
+  toc: true
+  toc_depth: 1
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Install & Load all the necessary packages
+source("./Packages.R")
+# Load in the ChIP-seq datasets
+source("./LoadData.R")
+```
+
+## Introduction
+
+```{r cars}
+summary(cars)
+```
+
