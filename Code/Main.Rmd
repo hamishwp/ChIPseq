@@ -2,22 +2,142 @@
 title: "Predicting Transcription Factor Binding using ChIP-seq Data"
 author: "Hamish Patten"
 date: "`r Sys.Date()`"
-output: pdf_document
-  toc: true
-  toc_depth: 1
+output: 
+  pdf_document
 ---
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-# Install & Load all the necessary packages
-source("./Packages.R")
-# Load in the ChIP-seq datasets
-source("./LoadData.R")
-```
 
 ## Introduction
 
-```{r cars}
-summary(cars)
+Fold enrichment - this is a normalisation method of the ChIP-seq signals per slice, which normalises the signal to a given noise level of the experiment. This is also referred to as the 'signal-to-noise' method. Note that the noise level can be produced from a control experiment where no antibody is present and thus no protein in particular is targeted to be analysed.
+
+## Data Wrangling
+ Let us read in the peak data first. Note that we remove random and chrUn sequences from our dataset, which constitutes less than 0.1% of the database.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Install & Load all the necessary packages & required functions
+source("./Packages.R")
+source("./LoadData.R")
+source("./Functions.R")
+# Load in the ChIP-seq datasets
+peaks<-LoadPeaks()
+# Load also the shuffle data
+shuffle<-LoadShuffle()
 ```
+
+Let's have a look at some important plots of the peak data. Firstly, let's look at the (fold enrichment) Chip-seq signal strength, per chromosome:
+
+```{r}
+peaks%>%ggplot(aes(x=Chromosome, y=FoldEnrich))+geom_violin(aes(fill=Chromosome)) +
+  ylab("Signal Strength (FE Normalised)") + 
+  # theme(axis.ticks.x = element_blank(),axis.text.x = element_blank()) + 
+  scale_fill_manual(breaks=c(as.character(1:22),"X"), values=rainbow(23))
+```
+Why are there no Y chromosomes? Does this indicate that the experiments had an entirely female-demography? This could be an example of demographic bias. Let's check the numbers per chromosome:
+```{r}
+peaks%>%group_by(Chromosome)%>%summarise(Counts=length(Chromosome))%>%knitr::kable()
+```
+
+We should be careful that the modelling later on is not heavily influence by the different count sizes. For example, chr1 is overrepresented and chr21 underrepresented. Let's also have a look at the influence of the DNA section length on the normalised signal strength:
+
+```{r}
+peaks%>%ggplot(aes(x=lengthDNA, y=FoldEnrich))+geom_point(aes(colour=Chromosome)) +
+  ylab("Signal Strength (FE Normalised)") + xlab("Length of the DNA Section") +
+  # theme(axis.ticks.x = element_blank(),axis.text.x = element_blank()) + 
+  scale_fill_manual(breaks=c(as.character(1:22),"X"), values=rainbow(23))
+```
+Nothing! Great... ok, well, then let's have a look at the 'p' value thing-a-magig:
+```{r}
+peaks%>%ggplot(aes(x=factor(pScore), y=FoldEnrich))+geom_violin(aes(fill=factor(pScore))) +
+  ylab("Signal Strength (FE Normalised)")
+```
+Let's check the counts for each of these:
+```{r}
+peaks%>%group_by(pScore)%>%summarise(Counts=length(Chromosome))%>%knitr::kable()
+```
+
+There is going to be an overrepresentation of the p1 value.
+
+### Exploratory Data Analysis
+Let us first group the shuffle and peaks data together.
+
+```{r,include=F}
+tmp<-shuffle; tmp$Chromosome<-NA; tmp$FoldEnrich<-0; tmp$Namer<-NA; tmp$pScore<-0; tmp$Bound<-F
+peaks$Bound<-T
+ALL<-rbind(peaks,tmp); rm(tmp)
+```
+Now let's use Factor Analysis of Mixed Data (FAMD) to try to get some insight into which variables distinguish the genes from one another, forgetting the binding strength and p-score signal-to-control values for the time being.
+
+```{r}
+fammyD_all<-ALL%>%dplyr::select(Chromosome,StartP,EndP,lengthDNA,Bound)%>%
+  FAMD(ncp = 2,sup.var = 5)
+```
+Let's look at the contributions of each feature to the FAMD dimensions:
+```{r}
+grid.arrange(fviz_contrib(fammyD_all, "var", axes = 1),
+             fviz_contrib(fammyD_all, "var", axes = 2),nrow=1)
+```
+The conclusion of the FAMD is that the chromosome looks like a particularly crucial feature to include when explaining the differences between the different genes. Let's look at the peaks data and the relationship between the binding strength and the different features.
+
+```{r}
+fammyD<-peaks%>%dplyr::select(Chromosome,StartP,EndP,lengthDNA,FoldEnrich,pScore)%>%
+  FAMD(ncp = 2,sup.var = 6)
+```
+This indicates that the p-score does not seem to contribute much to separate out the different 1000 genes that had peak levels of gene expression for the Transcription Factor. The start and end positions of the gene seem to contribute significantly to the first-dimension of the FAMD - the most important one, indicating that this is a strong feature that acts to separate the different genes from one another.
+
+```{r}
+peaks%<>%group_by(Chromosome)%>%mutate(modStart=StartP/min(StartP),modEnd=EndP/min(EndP))%>%ungroup()
+fammyD_pos<-peaks%>%dplyr::select(Chromosome,modStart,modEnd,lengthDNA,FoldEnrich)%>%FAMD(ncp = 2)
+```
+And once more but for all the data. THIS NEXT ONE IS WHAT YOU WANT TO SHOW
+```{r}
+ALL%<>%group_by(Chromosome)%>%mutate(modStart=StartP/min(StartP),modEnd=EndP/min(EndP))%>%ungroup()
+fammyD_posA<-ALL%>%dplyr::select(Chromosome,modStart,modEnd,lengthDNA,Bound)%>%FAMD(ncp = 2,sup.var = 5)
+```
+This plot indicates that this FAMD has created a division between the 1000-peak-genes and the control genes whereby this difference is orthogonal to the chromosome embedding. 
+```{r}
+fammyD_posA<-ALL%>%dplyr::select(modStart,modEnd,lengthDNA,FoldEnrich)%>%PCA(ncp = 2)
+```
+
+
+This means that we can now setup our model with numeric data only, at least for the first step, which greatly facilitates pre-processing. Let's use this for the first phase of model development.
+
+### Preparation for ML Algorithm(s)
+
+We need to make the one-hot arrays for both the peaks and the shuffle data. Before we do, let's also minimise the computation by choosing a minimum base length as the maximum sequence length out of both the shuffle and peak datasets. Although the minimum base length should be 300, we take the max length instead to save computation. The length is
+```{r, include=F}
+maxL<-max(max(str_length(peaks$dna)),max(str_length(shuffle$dna))); print(maxL)
+OneHpeaks<-ConvOneHot(peaks$dna,maxL)
+OneHshuffle<-ConvOneHot(shuffle$dna,maxL)
+```
+
+
+
+
+
+
+```{r, include=FALSE}
+# Need to max-normalise the binding strength
+peaks$FoldEnrich<-peaks$FoldEnrich/max(peaks$FoldEnrich)
+```
+
+Try also normalising the start and end positions with respect to the chromosome, instead of using the learned embedding of chromosomes
+
+
+
+
+
+
+
+
+log()
+
+
+
+
+
+
+
+
+
+
 
