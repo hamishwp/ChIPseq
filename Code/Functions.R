@@ -77,3 +77,43 @@ PermuteBase<-function(OneHot,ord=1:4){
   return(OneHot)
 }
 
+SortSCV<-function(indies,OneH,cv,maxL,SCV=5){
+  OtherP<-OtherS<-c()
+  for(ii in (1:SCV)[1:SCV!=cv]) {
+    OtherP<-c(OtherP,indies$P[[ii]])
+    OtherS<-c(OtherS,indies$S[[ii]])  
+  }
+  # Reduce the shuffle training data to be compatible with the length of the peak training data
+  iStrain<-sample(OtherS,length(OtherP))
+  iStest<-c(OtherS[!OtherS%in%iStrain],indies$S[[cv]])
+  # Calculate the lengths
+  lTrainP<-length(OtherP)
+  lTrainS<-length(iStrain)
+  lTestP<-length(indies$P[[cv]])
+  lTestS<-length(iStest)
+  # Templates
+  X_Train<-array(NA,c(lTrainP+lTrainS,4,maxL))
+  X_Test<-array(NA,c(lTestP+lTestS,4,maxL))
+  Y_Train<-rep(NA,(lTrainP+lTrainS))
+  Y_Test<-rep(NA,(lTestP+lTestS))
+  ################ TRAINING DATA ################
+  # Peak data:
+  X_Train[1:lTrainP,,]<-OneH$peaks[OtherP,,]
+  Y_Train<-rep(1,lTrainP)
+  # Shuffle data:
+  X_Train[(lTrainP+1):(lTrainP+lTrainS),,]<-OneH$shuffle[iStrain,,]
+  Y_Train<-c(Y_Train,rep(0,lTrainS))
+  ################## TEST DATA ##################
+  # Peak data:
+  X_Test[1:lTestP,,]<-OneH$peaks[indies$P[[cv]],,]
+  Y_Test<-rep(1,lTestP)
+  # Shuffle data:
+  X_Test[(lTestP+1):(lTestP+lTestS),,]<-OneH$shuffle[iStest,,]
+  Y_Test<-c(Y_Test,rep(0,lTestS))
+  
+  return(list(X_Train=array_reshape(X_Train, c(dim(X_Train)[1], 4, maxL, 1)),
+              X_Test=array_reshape(X_Test, c(dim(X_Test)[1], 4, maxL, 1)),
+              Y_Train=to_categorical(Y_Train, 2),
+              Y_Test=to_categorical(Y_Test, 2)))
+  
+}

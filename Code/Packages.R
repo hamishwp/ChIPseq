@@ -21,9 +21,11 @@ library(tensorflow)
 library(keras)
 library(caret)
 
-install_tensorflow(version = "cpu")
+# install_tensorflow(envname = "r-reticulate",version = "cpu")
+# install_keras(envname = "r-reticulate",version = "cpu")
 
-install_keras(envname = "r-reticulate",version = "cpu")
+library(tensorflow)
+library(keras)
 
 # virtualenv_create("r-reticulate", python = "/home/hamishwp/miniconda3/bin/python3.9")
 # library(tensorflow)
@@ -31,10 +33,5 @@ install_keras(envname = "r-reticulate",version = "cpu")
 # library(keras)
 # install_keras(envname = "r-reticulate")
 # library(tensorflow)
-tf$constant("Hello Tensorflow!")
-
-gpu_options <- tf$GPUOptions(per_process_gpu_memory_fraction = 0.3)
-config <- tf$ConfigProto(gpu_options = gpu_options)
-k_set_session(tf$Session(config = config))
-
+# tf$constant("Hello Tensorflow!")
 
