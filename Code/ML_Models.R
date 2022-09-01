@@ -32,7 +32,7 @@ for(meth in c("svmLinear","svmRadial","svmPoly")){
   svmDNA <- caret::train(Bound ~., 
                          data = dplyr::select(ALL,Bound,lengthDNA,modStart,modEnd), 
                          method =meth, trControl = train_control,metric = "ROC")
-                         # tuneGrid = expand.grid(C = seq(0.3, 3, length = 5)))#,  preProcess = c("center","scale"),)
+  # tuneGrid = expand.grid(C = seq(0.3, 3, length = 5)))#,  preProcess = c("center","scale"),)
   SVMout%<>%rbind(cbind(data.frame(model=meth,data="Mod"),
                         dplyr::select(as.data.frame(svmDNA$results),
                                       c(C,ROC,Sens,Spec))))
@@ -40,7 +40,7 @@ for(meth in c("svmLinear","svmRadial","svmPoly")){
   svmDNA <- caret::train(Bound ~., 
                          data = dplyr::select(ALL,Bound,lengthDNA,StartP,EndP), 
                          method =meth, trControl = train_control,metric = "ROC")
-                         # tuneGrid = expand.grid(C = seq(0.3, 3, length = 5)))#,  preProcess = c("center","scale"),)
+  # tuneGrid = expand.grid(C = seq(0.3, 3, length = 5)))#,  preProcess = c("center","scale"),)
   SVMout%<>%rbind(cbind(data.frame(model=meth,data="Orig"),
                         dplyr::select(as.data.frame(svmDNA$results),
                                       c(C,ROC,Sens,Spec))))
@@ -76,11 +76,11 @@ OneH<-list(peaks=ConvOneHot(peaks$dna,maxL),
 # permy<-gtools::permutations(n = 4, r = 4, v = 1:4)
 # CNN hyperparameters 
 Hyperparams<-list(cnnfilters=30,
-               kerneldim=c(4,30),
-               poolsize=2,
-               denselayers=30,
-               epocher=40,
-               SCV=5)
+                  kerneldim=c(4,30),
+                  poolsize=2,
+                  denselayers=30,
+                  epocher=40,
+                  SCV=5)
 
 RunCNN<-function(OneH, Hyperparams){
   # How many bound & unbound sequences do we have to play with?
@@ -92,7 +92,7 @@ RunCNN<-function(OneH, Hyperparams){
   # Output file
   performance<-data.frame()
   cnamers<-c("Loss","AUC","Recall","Precision","CVfold","j")
-  for(j in 1:5){
+  for(j in 1:10){
     #@@@@@@@@@@@@@@@@@@@@@ STRATIFIED CROSS-VALIDATION @@@@@@@@@@@@@@@@@@@@@#
     for(cv in 1:Hyperparams$SCV){
       # Get all peaks and some shuffle data together and split into test, training and validation
@@ -152,257 +152,6 @@ RunCNN<-function(OneH, Hyperparams){
 }
 
 output<-RunCNN(OneH, Hyperparams)
+
 output%>%summarise(Loss=mean(Loss),AUC=mean(AUC),Recall=mean(Recall),Precision=mean(Precision))%>%
   saveRDS("./ChIPseq/Results/TwoCNNLayers.RData")
-
-# saveRDS(performance,"./Results/AllPermutations_Performance_OptimAdam.RData")
-
-# Plan:
-# 1) Find out if any specific one-hot permutations are worse than any others
-#     a) for kernelcols in c(1,2,4)
-# Remove permutations
-# 2) Try out different optimisation algorithms
-# 3) Modify CNN filter numbers
-# 4) Modify poolsize
-# 5) Modify denselayers
-# 6) Add an extra CNN layer and use two (2,x) filter kernelsize
-# 7) One-hot*lengthDNA 1D CNN model
-# 8) {one-hot,lengthDNA} 2D CNN model
-
-# Remember to mention about data augmentation: flipping the gene
-
-
-# 3)
-
-Hyperparams<-list(cnnfilters=30,
-                  kerneldim=c(4,24),
-                  poolsize=6,
-                  denselayers=12,
-                  epocher=40,
-                  SCV=5)
-
-HypComp<-data.frame()
-for(cnf in c(10,20,30)){
-  Hyperparams$cnnfilters<-cnf
-  tmp<-tryCatch(RunCNN(OneH, Hyperparams),error=function(e) NA)
-  if(any(is.na(tmp))) next
-  HypComp%<>%rbind(data.frame(CNNfilter=cnf,
-                              KernelR=kerR,
-                              KernelC=kerC,
-                              PoolSize=pool,
-                              DenseLayers=dens,
-                              AUC=mean(tmp$AUC),
-                              Precision=mean(tmp$Precision),
-                              Recall=mean(tmp$Recall)))
-}
-Hyperparams<-list(cnnfilters=12,
-                  kerneldim=c(4,24),
-                  poolsize=6,
-                  denselayers=12,
-                  epocher=40,
-                  SCV=5)
-
-for(kerR in c(1,2,4)){
-  Hyperparams$kerneldim[1]<-kerR
-  tmp<-tryCatch(RunCNN(OneH, Hyperparams),error=function(e) NA)
-  if(any(is.na(tmp))) next
-  HypComp%<>%rbind(data.frame(CNNfilter=cnf,
-                              KernelR=kerR,
-                              KernelC=kerC,
-                              PoolSize=pool,
-                              DenseLayers=dens,
-                              AUC=mean(tmp$AUC),
-                              Precision=mean(tmp$Precision),
-                              Recall=mean(tmp$Recall)))
-}
-Hyperparams<-list(cnnfilters=12,
-                  kerneldim=c(4,24),
-                  poolsize=6,
-                  denselayers=12,
-                  epocher=40,
-                  SCV=5)
-for(kerC in c(20,30,50)){
-  Hyperparams$kerneldim[2]<-kerC
-  tmp<-tryCatch(RunCNN(OneH, Hyperparams),error=function(e) NA)
-  if(any(is.na(tmp))) next
-  HypComp%<>%rbind(data.frame(CNNfilter=cnf,
-                              KernelR=kerR,
-                              KernelC=kerC,
-                              PoolSize=pool,
-                              DenseLayers=dens,
-                              AUC=mean(tmp$AUC),
-                              Precision=mean(tmp$Precision),
-                              Recall=mean(tmp$Recall)))
-}
-Hyperparams<-list(cnnfilters=12,
-                  kerneldim=c(4,24),
-                  poolsize=6,
-                  denselayers=12,
-                  epocher=40,
-                  SCV=5)
-for(pool in c(1,2,4)){
-  Hyperparams$poolsize<-pool
-  tmp<-tryCatch(RunCNN(OneH, Hyperparams),error=function(e) NA)
-  if(any(is.na(tmp))) next
-  HypComp%<>%rbind(data.frame(CNNfilter=cnf,
-                              KernelR=kerR,
-                              KernelC=kerC,
-                              PoolSize=pool,
-                              DenseLayers=dens,
-                              AUC=mean(tmp$AUC),
-                              Precision=mean(tmp$Precision),
-                              Recall=mean(tmp$Recall)))
-}
-Hyperparams<-list(cnnfilters=12,
-                  kerneldim=c(4,24),
-                  poolsize=6,
-                  denselayers=12,
-                  epocher=40,
-                  SCV=5)
-for(dens in c(10,30,50)){
-  Hyperparams$denselayers<-dens
-  tmp<-tryCatch(RunCNN(OneH, Hyperparams),error=function(e) NA)
-  if(any(is.na(tmp))) next
-  HypComp%<>%rbind(data.frame(CNNfilter=cnf,
-                              KernelR=kerR,
-                              KernelC=kerC,
-                              PoolSize=pool,
-                              DenseLayers=dens,
-                              AUC=mean(tmp$AUC),
-                              Precision=mean(tmp$Precision),
-                              Recall=mean(tmp$Recall)))
-  
-}
-Hyperparams<-list(cnnfilters=12,
-                  kerneldim=c(4,24),
-                  poolsize=6,
-                  denselayers=12,
-                  epocher=40,
-                  SCV=5)
-saveRDS(HypComp,paste0(dir,"/Results/Hyperparameter_Play.RData"))
-
-OneH2<-OneH
-Hyperparams2<-Hyperparams
-
-for(i in 1:dim(OneH2$peaks)[1]) OneH2$peaks[i,,]<-OneH2$peaks[i,,]*peaks$lengthDNA[i]
-for(i in 1:dim(OneH2$shuffle)[1]) OneH2$shuffle[i,,]<-OneH2$shuffle[i,,]*shuffle$lengthDNA[i]
-
-LennyHypComp<-data.frame()
-for(cnf in c(10,20,30)){
-  Hyperparams2$cnnfilters<-cnf
-  tmp<-tryCatch(RunCNN(OneH2, Hyperparams2),error=function(e) NA)
-  if(any(is.na(tmp))) next
-  LennyHypComp%<>%rbind(data.frame(CNNfilter=cnf,
-                              KernelR=kerR,
-                              KernelC=kerC,
-                              PoolSize=pool,
-                              DenseLayers=dens,
-                              AUC=mean(tmp$AUC),
-                              Precision=mean(tmp$Precision),
-                              Recall=mean(tmp$Recall)))
-}
-Hyperparams2<-list(cnnfilters=12,
-                  kerneldim=c(4,24),
-                  poolsize=6,
-                  denselayers=12,
-                  epocher=40,
-                  SCV=5)
-for(kerR in c(1,2,4)){
-  Hyperparams2$kerneldim[1]<-kerR
-  tmp<-tryCatch(RunCNN(OneH2, Hyperparams2),error=function(e) NA)
-  if(any(is.na(tmp))) next
-  LennyHypComp%<>%rbind(data.frame(CNNfilter=cnf,
-                              KernelR=kerR,
-                              KernelC=kerC,
-                              PoolSize=pool,
-                              DenseLayers=dens,
-                              AUC=mean(tmp$AUC),
-                              Precision=mean(tmp$Precision),
-                              Recall=mean(tmp$Recall)))
-}
-Hyperparams2<-list(cnnfilters=12,
-                   kerneldim=c(4,24),
-                   poolsize=6,
-                   denselayers=12,
-                   epocher=40,
-                   SCV=5)
-for(kerC in c(10,20,30,50)){
-  Hyperparams2$kerneldim[2]<-kerC
-  tmp<-tryCatch(RunCNN(OneH2, Hyperparams2),error=function(e) NA)
-  if(any(is.na(tmp))) next
-  LennyHypComp%<>%rbind(data.frame(CNNfilter=cnf,
-                              KernelR=kerR,
-                              KernelC=kerC,
-                              PoolSize=pool,
-                              DenseLayers=dens,
-                              AUC=mean(tmp$AUC),
-                              Precision=mean(tmp$Precision),
-                              Recall=mean(tmp$Recall)))
-}
-Hyperparams2<-list(cnnfilters=12,
-                   kerneldim=c(4,24),
-                   poolsize=6,
-                   denselayers=12,
-                   epocher=40,
-                   SCV=5)
-for(pool in c(1,2,4)){
-  Hyperparams2$poolsize<-pool
-  tmp<-tryCatch(RunCNN(OneH2, Hyperparams2),error=function(e) NA)
-  if(any(is.na(tmp))) next
-  LennyHypComp%<>%rbind(data.frame(CNNfilter=cnf,
-                              KernelR=kerR,
-                              KernelC=kerC,
-                              PoolSize=pool,
-                              DenseLayers=dens,
-                              AUC=mean(tmp$AUC),
-                              Precision=mean(tmp$Precision),
-                              Recall=mean(tmp$Recall)))
-}
-Hyperparams2<-list(cnnfilters=12,
-                   kerneldim=c(4,24),
-                   poolsize=6,
-                   denselayers=12,
-                   epocher=40,
-                   SCV=5)
-for(dens in c(10,30,50)){
-  Hyperparams2$denselayers<-dens
-  tmp<-tryCatch(RunCNN(OneH2, Hyperparams2),error=function(e) NA)
-  if(any(is.na(tmp))) next
-  LennyHypComp%<>%rbind(data.frame(CNNfilter=cnf,
-                              KernelR=kerR,
-                              KernelC=kerC,
-                              PoolSize=pool,
-                              DenseLayers=dens,
-                              AUC=mean(tmp$AUC),
-                              Precision=mean(tmp$Precision),
-                              Recall=mean(tmp$Recall)))
-  
-}
-Hyperparams2<-list(cnnfilters=12,
-                   kerneldim=c(4,24),
-                   poolsize=6,
-                   denselayers=12,
-                   epocher=40,
-                   SCV=5)
-saveRDS(LennyHypComp,paste0(dir,"/Results/Hyperparameter_Play_LengthDNA.RData"))
-
-
-
-
-
-
-
-
-
-
-
-
-
-# performance%>%group_by(permSCV)%>%summarise(meany=mean(AUC),meddy=median(AUC))%>%View()
-
-# Optimiser<-data.frame(Name=c("Adadelta","SGD","ADAM"),
-#                       AUC=c(mean(Ada$AUC),mean(SDG$AUC),mean(ADAM$AUC)),
-#                       Precision=c(mean(Ada$Precision),mean(SDG$Precision),mean(ADAM$Precision)),
-#                       Recall=c(mean(Ada$Recall),mean(SDG$Recall),mean(ADAM$Recall)))
-
-# saveRDS(Optimiser,"./Results/Optimiser_Comparison.RData")

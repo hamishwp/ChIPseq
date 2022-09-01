@@ -1,12 +1,25 @@
 ###########################################################################
 ######################## INSTALL REQUIRED PACKAGES ########################
 ###########################################################################
-# # Now let's install all the other necessary packages:
-list.of.packages <- c("ggplot2","tidyverse","caret","stringr","keras","tensorflow",
-                      "FactoMineR","factoextra","gridExtra","Rgtsvm")
-# # Install the packages that aren't already installed
-new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
-if(length(new.packages)) install.packages(new.packages)
+if(installer){
+  # # Now let's install all the other necessary packages:
+  list.of.packages <- c("ggplot2","tidyverse","caret","stringr","keras","tensorflow",
+                        "FactoMineR","factoextra","gridExtra","Rgtsvm")
+  # # Install the packages that aren't already installed
+  new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+  if(length(new.packages)) install.packages(new.packages)
+  
+  # install_tensorflow(envname = "r-reticulate",version = "cpu")
+  # install_keras(envname = "r-reticulate",version = "cpu")
+  # virtualenv_create("r-reticulate", python = "/home/hamishwp/miniconda3/bin/python3.9")
+  # library(tensorflow)
+  # install_tensorflow(envname = "r-reticulate")
+  # library(keras)
+  # install_keras(envname = "r-reticulate")
+  # library(tensorflow)
+  # tf$constant("Hello Tensorflow!")
+  
+}
 ###########################################################################
 ############################# LOAD LIBRARIES ##############################
 ###########################################################################
@@ -20,18 +33,4 @@ library(gridExtra)
 library(tensorflow)
 library(keras)
 library(caret)
-
-# install_tensorflow(envname = "r-reticulate",version = "cpu")
-# install_keras(envname = "r-reticulate",version = "cpu")
-
-library(tensorflow)
-library(keras)
-
-# virtualenv_create("r-reticulate", python = "/home/hamishwp/miniconda3/bin/python3.9")
-# library(tensorflow)
-# install_tensorflow(envname = "r-reticulate")
-# library(keras)
-# install_keras(envname = "r-reticulate")
-# library(tensorflow)
-# tf$constant("Hello Tensorflow!")
 
