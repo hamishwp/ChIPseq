@@ -13,11 +13,12 @@ Fold enrichment - this is a normalisation method of the ChIP-seq signals per sli
 ## Data Wrangling
  Let us read in the peak data first. Note that we remove random and chrUn sequences from our dataset, which constitutes less than 0.1% of the database.
 ```{r setup, include=FALSE}
+dir<-getwd()
 knitr::opts_chunk$set(echo = TRUE)
 # Install & Load all the necessary packages & required functions
-source("./Packages.R")
-source("./LoadData.R")
-source("./Functions.R")
+source(paste0(dir,"/Packages.R"))
+source(paste0(dir,"/LoadData.R"))
+source(paste0(dir,"/Functions.R"))
 # Load in the ChIP-seq datasets
 peaks<-LoadPeaks()
 # Load also the shuffle data

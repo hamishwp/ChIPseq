@@ -3,7 +3,7 @@
 ###########################################################################
 # # Now let's install all the other necessary packages:
 list.of.packages <- c("ggplot2","tidyverse","caret","stringr","keras","tensorflow",
-                      "FactoMineR","factoextra","gridExtra")
+                      "FactoMineR","factoextra","gridExtra","Rgtsvm")
 # # Install the packages that aren't already installed
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)

@@ -3,7 +3,7 @@
 #############################################################################
 LoadPeaks<-function(){
   # Peaks data first!
-  peaks<-read.delim("../Data/peak_data.txt",header = F)
+  peaks<-read.delim(paste0(dir,"/Data/peak_data.txt"),header = F)
   # It's two lines, first describes properties of , 
   # the second the DNA sequence of this specific
   peaks<-data.frame(desc=peaks[seq(1,nrow(peaks),by=2),1],

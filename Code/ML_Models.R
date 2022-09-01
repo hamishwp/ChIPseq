@@ -1,7 +1,43 @@
+dir<-getwd()
+
 ################################################################################
 ######################### SUPPORT VECTOR MACHINE - SVM #########################
 ################################################################################
-
+# Data wrangling:
+peaks$Bound<-"Unbound"; shuffle$Bound="Bound"; shuffle$Chromosome=100
+ALL<-rbind(dplyr::select(peaks,c(lengthDNA,StartP,EndP,Chromosome,Bound)),
+           dplyr::select(shuffle,c(lengthDNA,StartP,EndP,Chromosome,Bound)))
+ALL%<>%group_by(Chromosome)%>%mutate(modStart=StartP/min(StartP),modEnd=EndP/min(EndP))%>%ungroup()
+ALL%<>%dplyr::select(-Chromosome)
+# Peaks:
+process<-ALL%>%preProcess(method=c("range"))
+ALL<-predict(process, ALL)
+ALL$Bound%<>%factor()
+# SVM
+# Repeated Cross-Validation
+train_control <- trainControl(method="repeatedcv", number=5, repeats=10,
+                              classProbs = TRUE, summaryFunction = twoClassSummary)
+SVMout<-data.frame()
+# Run the SVM!
+for(meth in c("svmLinear","svmRadial","svmPoly")){
+  # Using the chromosome-based normalisation of position
+  svmDNA <- caret::train(Bound ~., 
+                         data = dplyr::select(ALL,Bound,lengthDNA,modStart,modEnd), 
+                         method =meth, trControl = train_control,metric = "ROC")
+                         # tuneGrid = expand.grid(C = seq(0.3, 3, length = 5)))#,  preProcess = c("center","scale"),)
+  SVMout%<>%rbind(cbind(data.frame(model=meth,data="Mod"),
+                        dplyr::select(as.data.frame(svmDNA$results),
+                                      c(C,ROC,Sens,Spec))))
+  # Using the original position
+  svmDNA <- caret::train(Bound ~., 
+                         data = dplyr::select(ALL,Bound,lengthDNA,StartP,EndP), 
+                         method =meth, trControl = train_control,metric = "ROC")
+                         # tuneGrid = expand.grid(C = seq(0.3, 3, length = 5)))#,  preProcess = c("center","scale"),)
+  SVMout%<>%rbind(cbind(data.frame(model=meth,data="Orig"),
+                        dplyr::select(as.data.frame(svmDNA$results),
+                                      c(C,ROC,Sens,Spec))))
+}
+saveRDS(SVMout,paste0(dir,"/Results/SVM.RData"))
 
 ################################################################################
 ######################## CONVOLUTIONAL NEURAL NET - CNN ########################
@@ -229,7 +265,7 @@ Hyperparams<-list(cnnfilters=12,
                   denselayers=12,
                   epocher=40,
                   SCV=5)
-saveRDS(HypComp,"./Results/Hyperparameter_Play.RData")
+saveRDS(HypComp,paste0(dir,"/Results/Hyperparameter_Play.RData"))
 
 OneH2<-OneH
 Hyperparams2<-Hyperparams
@@ -334,7 +370,7 @@ Hyperparams2<-list(cnnfilters=12,
                    denselayers=12,
                    epocher=40,
                    SCV=5)
-saveRDS(LennyHypComp,"./Results/Hyperparameter_Play_LengthDNA.RData")
+saveRDS(LennyHypComp,paste0(dir,"/Results/Hyperparameter_Play_LengthDNA.RData"))
 
 
 
