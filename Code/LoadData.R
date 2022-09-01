@@ -48,7 +48,7 @@ LoadPeaks<-function(){
 
 LoadShuffle<-function(){
   # Raw data
-  shuffle<-read.delim("../Data/shuffled_data.txt",header = F)
+  shuffle<-read.delim(paste0(dir,"/Data/shuffled_data.txt"),header = F)
   # It's two lines, first describes properties of , 
   # the second the DNA sequence of this specific
   shuffle<-data.frame(desc=shuffle[seq(1,nrow(shuffle),by=2),1],

@@ -112,33 +112,11 @@ OneHshuffle<-ConvOneHot(shuffle$dna,maxL)
 ```
 
 
-
-
-
-
-```{r, include=FALSE}
-# Need to max-normalise the binding strength
-peaks$FoldEnrich<-peaks$FoldEnrich/max(peaks$FoldEnrich)
+```{r}
+perf<-readRDS(paste0(dir,"/Results/Hyperparameter_Play.RData"))
+knitr::kable(perf)
 ```
-
-Try also normalising the start and end positions with respect to the chromosome, instead of using the learned embedding of chromosomes
-
-
-
-
-
-
-
-
-log()
-
-
-
-
-
-
-
-
+We see that using a larger number of CNN filters improves the prediction. Making the CNN filter row size cover across all four gene bases significantly improves prediction. Using a CNN filter column dimension of 30, and not smaller or larger, is shown to increase the predictive performance. For the pool size of the max pooling layer, the optimal value is 2, and not 1 and 4. Finally, the number of dense layers in the fully connected dense layer should be more than 10, and is comparable between using 30 and 50 layers. Across all of these hyperparameter variations, modifying the dimensionality of the CNN filter dimensions had the largest influence on the predictive performance.
 
 
 

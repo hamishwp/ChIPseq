@@ -1,4 +1,12 @@
 dir<-getwd()
+# Install & Load all the necessary packages & required functions
+source(paste0(dir,"/Code/Packages.R"))
+source(paste0(dir,"/Code/LoadData.R"))
+source(paste0(dir,"/Code/Functions.R"))
+# Load in the ChIP-seq datasets
+peaks<-LoadPeaks()
+# Load also the shuffle data
+shuffle<-LoadShuffle()
 
 ################################################################################
 ######################### SUPPORT VECTOR MACHINE - SVM #########################
@@ -67,10 +75,10 @@ OneH<-list(peaks=ConvOneHot(peaks$dna,maxL),
 # Calculate all the possible permutations of the one-hot array:
 # permy<-gtools::permutations(n = 4, r = 4, v = 1:4)
 # CNN hyperparameters 
-Hyperparams<-list(cnnfilters=12,
-               kerneldim=c(4,24),
-               poolsize=6,
-               denselayers=12,
+Hyperparams<-list(cnnfilters=30,
+               kerneldim=c(4,30),
+               poolsize=2,
+               denselayers=30,
                epocher=40,
                SCV=5)
 
@@ -103,11 +111,14 @@ RunCNN<-function(OneH, Hyperparams){
         layer_conv_2d(filters = Hyperparams$cnnfilters, kernel_size = Hyperparams$kerneldim,
                       activation = 'relu', input_shape = c(4,maxL,1)) %>%
         layer_max_pooling_2d(pool_size = c(1, Hyperparams$poolsize)) %>%
+        # layer_conv_2d(filters = Hyperparams$cnnfilters, kernel_size = c(2,10),
+        #               activation = 'relu') %>%
         layer_dropout(rate = 0.2) %>%
         layer_batch_normalization() %>%
         layer_flatten() %>%
         layer_dense(units = Hyperparams$denselayers, activation = 'relu') %>%
         layer_dropout(rate = 0.5) %>%
+        # layer_dense(units = 10, activation = 'relu') %>%
         # softmax to create probabilities which can build the AUC
         layer_dense(units = 2, activation = 'softmax') 
       # summary(cnn_model)
@@ -140,6 +151,9 @@ RunCNN<-function(OneH, Hyperparams){
   return(performance)
 }
 
+output<-RunCNN(OneH, Hyperparams)
+output%>%summarise(Loss=mean(Loss),AUC=mean(AUC),Recall=mean(Recall),Precision=mean(Precision))%>%
+  saveRDS("./ChIPseq/Results/TwoCNNLayers.RData")
 
 # saveRDS(performance,"./Results/AllPermutations_Performance_OptimAdam.RData")
 
@@ -160,7 +174,7 @@ RunCNN<-function(OneH, Hyperparams){
 
 # 3)
 
-Hyperparams<-list(cnnfilters=12,
+Hyperparams<-list(cnnfilters=30,
                   kerneldim=c(4,24),
                   poolsize=6,
                   denselayers=12,
