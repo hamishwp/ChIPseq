@@ -69,12 +69,18 @@ PermuteBase<-function(OneHot,ord=1:4){
   tmp<-OneHot
   # Re-order
   # For 1D CNN
-  if(length(dim(OneHot))==3) {for(i in 1:4) OneHot[,i,]<-tmp[,ord[i],]
+  if(length(dim(OneHot))==4) {for(i in 1:4) OneHot[,i,,]<-tmp[,ord[i],,]
   # For 2D CNN
-  } else if(length(dim(OneHot))==4) {for(i in 1:4) OneHot[,i,,]<-tmp[,ord[i],,]
+  } else if(length(dim(OneHot))==5) {for(i in 1:4) OneHot[,i,,,]<-tmp[,ord[i],,,]
   } else stop("Incorrect dimensions of one-hot array given to permutation function")
   
   return(OneHot)
+}
+
+PermutateData<-function(Data,ord=1:4){
+  Data$X_Train%<>%PermuteBase(ord)
+  Data$X_Test%<>%PermuteBase(ord)
+  return(Data)
 }
 
 SortSCV<-function(indies,OneH,cv,maxL,SCV=5){
