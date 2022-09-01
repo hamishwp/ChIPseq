@@ -51,12 +51,12 @@ RunCNN<-function(OneH, Hyperparams){
   for(j in 1:5){
     #@@@@@@@@@@@@@@@@@@@@@ STRATIFIED CROSS-VALIDATION @@@@@@@@@@@@@@@@@@@@@#
     for(cv in 1:Hyperparams$SCV){
-      # First work out the indices for both the peak and shuffle training datasets:
-      Orig<-Data<-SortSCV(indies,OneH,cv,maxL,SCV=Hyperparams$SCV)
       # Get all peaks and some shuffle data together and split into test, training and validation
       # Get a nSCV-column indices array that was generated from sampling from 1:lenP
       indies<-list(P=createFolds(1:lenP, k = Hyperparams$SCV, list = T, returnTrain = FALSE),
                    S=createFolds(1:lenS, k = Hyperparams$SCV, list = T, returnTrain = FALSE))
+      # First work out the indices for both the peak and shuffle training datasets:
+      Orig<-Data<-SortSCV(indies,OneH,cv,maxL,SCV=Hyperparams$SCV)
       # Run the model for each one-hot permutation:
       # for(ppp in 1:nrow(permy)){
       #   permSCV<-paste0("A=1,C=2,G=3,T=4 ordered by ",paste0(permy[ppp,],collapse = ","))
