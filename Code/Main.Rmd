@@ -20,9 +20,11 @@ source(paste0(dir,"/Code/Functions.R"))
 
 ## Introduction
 
-Fold enrichment - this is a normalisation method of the ChIP-seq signals per slice, which normalises the signal to a given noise level of the experiment. This is also referred to as the 'signal-to-noise' method. Note that the noise level can be produced from a control experiment where no antibody is present and thus no protein in particular is targeted to be analysed.
+The aim of this mini-project is to predict which DNA sequences will bind to a given Transcription Factor (TF). Using various Machine Learning models, we will build a classifier that identifies which sequence features are predictive of gene-TF binding for this specific TF. The data used for this research is from ChIP-sequencing experiments. We will not explain this concept in this report, but ask the reader to explore themselves if they are not familiar with the subject.
 
 ## Data
+
+We are provided with two datasets. The first is a list of the top-1000 DNA sequences that were inferred from the ChIP-seq data, ranked by the intensity of the signal of the region the sequence was inferred from. The second is a list of 5000 DNA sequences that were inferred to not bind with the specific TF.
 
 ```{r}
 # Load in the ChIP-seq datasets
