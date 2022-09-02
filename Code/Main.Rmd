@@ -1,18 +1,14 @@
 ---
-title: "Predicting Transcription Factor Binding using ChIP-seq Data"
+title: "Predicting Transcription Factor Binding"
+subtitle: 'using ChIP-seq Data'
 author: "Hamish Patten"
 date: "`r Sys.Date()`"
-output: 
-  pdf_document
+output:
+  html_document:
+    df_print: paged
 ---
 
-## Introduction
-
-Fold enrichment - this is a normalisation method of the ChIP-seq signals per slice, which normalises the signal to a given noise level of the experiment. This is also referred to as the 'signal-to-noise' method. Note that the noise level can be produced from a control experiment where no antibody is present and thus no protein in particular is targeted to be analysed.
-
-## Data Wrangling
- Let us read in the peak data first. Note that we remove random and chrUn sequences from our dataset, which constitutes less than 0.1% of the database.
-```{r setup, include=FALSE}
+```{r setup, include=F}
 dir<-"~/Documents/Coding/Other/ChIPseq"
 knitr::opts_chunk$set(echo = TRUE)
 # Install & Load all the necessary packages & required functions
@@ -20,16 +16,27 @@ installer<-F
 source(paste0(dir,"/Code/Packages.R"))
 source(paste0(dir,"/Code/LoadData.R"))
 source(paste0(dir,"/Code/Functions.R"))
+```
+
+## Introduction
+
+Fold enrichment - this is a normalisation method of the ChIP-seq signals per slice, which normalises the signal to a given noise level of the experiment. This is also referred to as the 'signal-to-noise' method. Note that the noise level can be produced from a control experiment where no antibody is present and thus no protein in particular is targeted to be analysed.
+
+## Data
+
+```{r}
 # Load in the ChIP-seq datasets
 peaks<-LoadPeaks()
 # Load also the shuffle data
 shuffle<-LoadShuffle()
 ```
 
-An example gene expression is 'GAGCCCCACCTGGTGTCTA...'. Let's visualise just a few entries of the rest of the variables that came with the input data:
+Let us read in the peak data first. Note that we remove random and chrUn sequences from our dataset, which constitutes less than 0.1% of the database. An example gene expression is 'GAGCCCCACCTGGTGTCTA...'. Let's visualise just a few entries of the rest of the variables that came with the input data:
+
 ```{r}
 peaks%>%dplyr::select(-dna)%>%head()
 ```
+
 The most important variables that we are interested in are the chromosomes, the start and end position (StartP and EndP, resp.), the length of the DNA sequence $|EndP - StartP|$, and the strength of the ChIP-seq signal of the gene, which I have reason to believe is normalised by the fold enrichment method. The other variables are not 100% understood, and are apparently not all that relevant.
 
 ### Exploratory Data Analysis
@@ -42,35 +49,41 @@ peaks%>%ggplot(aes(x=Chromosome, y=FoldEnrich))+geom_violin(aes(fill=Chromosome)
   # theme(axis.ticks.x = element_blank(),axis.text.x = element_blank()) + 
   scale_fill_manual(breaks=c(as.character(1:22),"X"), values=rainbow(23))
 ```
+
 Why are there no Y chromosomes? Does this indicate that the experiments had an entirely female-demography? This could be an example of demographic bias. Let's check the numbers per chromosome:
+
 ```{r}
-peaks%>%group_by(Chromosome)%>%summarise(Counts=length(Chromosome))%>%knitr::kable()
+peaks%>%group_by(Chromosome)%>%summarise(Counts=length(Chromosome))%>%knitr::kable(align="l")
 ```
 
 We should be careful that the modelling later on is not heavily influence by the different count sizes. For example, chr1 is overrepresented and chr21 underrepresented. Let us first group the shuffle and peaks data together.
 
-```{r,include=F}
-tmp<-shuffle; tmp$Chromosome<-NA; tmp$FoldEnrich<-0; tmp$Namer<-NA; tmp$pScore<-0; tmp$Bound<-F
+```{r}
+shuffle$Chromosome<-NA; shuffle$FoldEnrich<-0; shuffle$Namer<-NA; shuffle$pScore<-0; shuffle$Bound<-F
 peaks$Bound<-T
-ALL<-rbind(peaks,tmp); rm(tmp)
+ALL<-rbind(peaks,shuffle)
 ```
+
 Now let's use Factor Analysis of Mixed Data (FAMD) to try to get some insight into which variables distinguish the genes from one another, forgetting the binding strength and p-score signal-to-control values for the time being.
 
 ```{r}
 fammyD_all<-ALL%>%dplyr::select(Chromosome,StartP,EndP,lengthDNA,Bound)%>%
   FAMD(ncp = 2,sup.var = 5)
 ```
+
 The conclusion of the FAMD is that the chromosome looks like a particularly crucial feature to include when explaining the differences between the different genes. The start and end positions of the gene also seem to contribute significantly to the first-dimension of the FAMD - the most important one, indicating that this is a strong feature that acts to separate the different genes from one another. What happens if we normalise the start and end position *per chromosome*? Let's see if that is more predictive of whether a gene will bind or not to the TF.
 
 ```{r}
 ALL%<>%group_by(Chromosome)%>%mutate(modStart=StartP/min(StartP),modEnd=EndP/min(EndP))%>%ungroup()
 fammyD_posA<-ALL%>%dplyr::select(Chromosome,modStart,modEnd,lengthDNA,Bound)%>%FAMD(ncp = 2,sup.var = 5)
 ```
+
 This plot indicates that this FAMD has created a division between the 1000-peak-genes and the control genes whereby this difference is *orthogonal to the chromosome embedding*. This means that we can now setup our model with numeric data only, at least for the first step, which greatly facilitates pre-processing. Let's use this for the first phase of model development.
 
 ## Statistical Modelling
 
 For this work, we will compare two different models. The first, which took me around 15 minutes to implement, is the Support Vector Machine, which is applied to the dataset without the DNA sequence involved at all. The second step is to train a Convolutional Neural Network (CNN) on the DNA sequence data. In the final model, I combine both the DNA sequence data and the length of the DNA variable into one single model. A summary of the models studied is as follows:
+
 1. Support Vector Machine
     + with linear kernel (varying cost)
     + with radial kernel (varying sigma and cost)
@@ -87,16 +100,16 @@ For the SVM analysis, we do not include the DNA sequence data, only the gene-spe
 
 As shown in the numbered list in the previous section, we apply linear, radial and polygon kernels in the SVM models. Stratified, repeated (10 times) 5-fold Cross-Validation is used to illustrate model performance. The metric used is the AUC (Area Under the Receiver Operating Characteristic - ROC - Curve). The results of the SVM models are as follows:
 
-```{r,include=F}
+```{r}
 svmDNA<-readRDS(paste0(dir,"/Results/SVM.RData"))
-svmDNA$data%<>%factor()%>%as.numeric()
-svmDNA$data<-!as.logical(svmDNA$data-1)
 svmDNA %>% group_by(model,data)%>%summarise(AUC=mean(ROC),.groups="drop")%>%
-  knitr::kable(col.names = c("Model","Chromosome-Relative","AUC"))
+  knitr::kable(col.names = c("Model","Chromosome-Relative","Average AUC"))
 ```
+
 ### Convolutional Neural Network
 
-This CNN model consists of building layers of the neural network, some are 2D convolutional, some are dense layers. The setup is varied throughout the work. The principle setup is shown in the code below:
+This CNN model consists of building layers of the neural network, some are 2D convolutional, some are dense layers. The setup is varied throughout the work. The 'baseline' setup is shown in the code below:
+
 ```{r}
 cnn_model <- keras_model_sequential() %>%
   # Convolutional layer, including ReLu Activation Function
@@ -118,23 +131,54 @@ cnn_model <- keras_model_sequential() %>%
   layer_dense(units = 2, activation = 'softmax') 
 ```
 
-When we run our model, we use stratified, 10-times repeated 5-fold cross-validation. The performance metrics that are used are the AUC, the precision and the recall.
+When we run our model, we use stratified, 10-times repeated 5-fold cross-validation. The performance metrics that are used are the AUC, the precision and the recall. Before starting our first simulation, we need to make one-hot arrays for both the peaks and the shuffle data, shown in the figure below. Before we do, let's also minimise the computation by choosing a minimum base length as the maximum sequence length out of both the shuffle and peak datasets. Although the minimum base length should be between 200-300 (the limit of the ChIP-seq experimental technology), we take the max length instead to save computation. Let's print out the length, and also have a quick preview of what the one-hot array looks like (trimmmed to the first 10 columns)
 
-    
-Firstly, we need to make one-hot arrays for both the peaks and the shuffle data, shown in the figure below. Before we do, let's also minimise the computation by choosing a minimum base length as the maximum sequence length out of both the shuffle and peak datasets. Although the minimum base length should be between 200-300 (the limit of the ChIP-seq experimental technology), we take the max length instead to save computation. The length is
-```{r, include=F}
+```{r}
 maxL<-max(max(str_length(peaks$dna)),max(str_length(shuffle$dna))); print(maxL)
 OneHpeaks<-ConvOneHot(peaks$dna,maxL)
-```
-Let's have a quick preview of what the one-hot array looks like (trimmmed to the first 15 rows)
-```{r}
 OneHpeaks[1,,1:10]
 ```
 
+Hyperparameters play an important part in CNNs. There are model-based and methodology-based hyperparameters. The latter consists of the batch size, which we kept at 139 (division of the 994 peak values we have as observation data), and 50 epochs to train the model. The baseline model hyperparameters are defined as following:
+
+- 30 cnnfilters: Number of CNN filters used in the case where the number of CNN layers is equal to one.
+- c(4,24) kerneldim: dimensions of the filter layers used in the convolutional layer. Note that the c(row,column) rows correspond to the ACGT column, and the columns correspond to the max DNA sequence length.
+- c(1,2) poolsize: for the max pooling layer, the CNN layer matrix is reduced by this value
+- 30 denselayers: the output size of the dense layer, condensing all the information precedent
+
+In terms of parameterising the model, the first step in this work was to check for the most optimal method with respect to our baseline hyperparameterisation. Three models are compared, and the results show below:
 
 ```{r}
-perf<-readRDS(paste0(dir,"/Results/Hyperparameter_Play.RData"))
-knitr::kable(perf)
+OptimRes<-readRDS(paste0(dir,"/Results/Optimiser_Performance.RData"))
+OptimRes%>%knitr::kable()
+```
+
+The ADAM optimiser is significantly better than Stochastic Gradient Descent (SGD), and is marginally better than the AdaDelta algorithm. Therefore, the remainder of this work will be working with the ADAM algorithm. The next step is to look at the model hyperparameter choice. In keeping the baseline hyperparameters fixed, we then piecewise modified certain parameters.
+
+```{r}
+perf<-readRDS(paste0(dir,"/Results/Hyperparameter_Play2.RData"))
+perf%>%knitr::kable()
 ```
 We see that using a larger number of CNN filters improves the prediction. Making the CNN filter row size cover across all four gene bases significantly improves prediction. Using a CNN filter column dimension of 30, and not smaller or larger, is shown to increase the predictive performance. For the pool size of the max pooling layer, the optimal value is 2, and not 1 and 4. Finally, the number of dense layers in the fully connected dense layer should be more than 10, and is comparable between using 30 and 50 layers. Across all of these hyperparameter variations, modifying the dimensionality of the CNN filter dimensions had the largest influence on the predictive performance.
 
+```{r}
+output<-readRDS(paste0(dir,"/Results/LayerStructureOptimisation.RData"))
+knitr::kable(output)
+```
+Seems like an example of Occam's razor! Having one CNN layer and one densely connected layer seems to outperform the other, more intricate models. This is most likely because our data sample size is so small (~1600 training samples).
+
+For the final model, let's try to use the insight we gained from the SVM earlier, that the length of the DNA sequence is a strong indicator of binding strength. We will multiply the one-hot matrix by the (normalised) length of the DNA sequence, and re-run the CNN. Note that this also requires for us to play around with the hyperparameters as changing from binary arrays to continuous arrays will influence the optimal parameterisation.
+
+```{r}
+perf<-readRDS(paste0(dir,"/Results/Hyperparameter_Play_LengthDNA2.RData"))
+perf%>%knitr::kable()
+```
+Nope! Nevermind, so moving away from binary one-hot arrays by incorporating the length of the DNA did not seem to help improve the performance of the CNN. 
+
+## Conclusion
+
+The surprising conclusion of this project is that, in order to predict whether a DNA sequence binds to this specfic Transcription Factor, the best model, $AUC=1$, is a simple linear SVM! This SVM used the chromosome-relative start and end positions as well as the length of the DNA sequence. Ok, this is almost certainly an artifact of the data, and would not apply to a different, more diverse dataset. If we do use the DNA sequence order information, which we did using Convolutional Neural Networks (CNN), then the best performing model, $AUC=0.986$, was to use a CNN that consists of one convolutional layer and one densely-connected layer, with several other layers inbetween as illustrated by the code in section 'Convolutional Neural Network'. For the CNN hyperparameters, the optimal choice was to have 30 CNN filters each of dimension c(4,24), with a pooling layer of dimension c(1,2), a dense layer of output size 30.
+
+## Future Work
+
+If this project would be continued, then use of a 3D Convolutional Neural Network could be used. This extra dimension would have only a size of 2, one being the one-hot matrix, the other being the one-hot matrix multiplied by the length of the DNA sequence. 
